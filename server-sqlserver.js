@@ -209,13 +209,18 @@ app.get('/api/votaciones/resumen', async (req, res) => {
                 SELECT 
                     p.id,
                     p.pregunta_clave,
-                    p.decision_relacionada,
+                    d.decision as decision_texto,
+                    g.nombre as gerente_nombre,
+                    g.area,
                     SUM(CASE WHEN v.tipo_voto = 'impacto' THEN 1 ELSE 0 END) as votos_impacto,
                     SUM(CASE WHEN v.tipo_voto = 'urgencia' THEN 1 ELSE 0 END) as votos_urgencia,
                     COUNT(v.id) as total_votos
                 FROM preguntas_criticas p
                 LEFT JOIN votaciones v ON p.id = v.pregunta_critica_id
-                GROUP BY p.id, p.pregunta_clave, p.decision_relacionada
+                LEFT JOIN decisiones d ON p.decision_id = d.id
+                LEFT JOIN gerentes g ON p.gerente_id = g.id
+                GROUP BY p.id, p.pregunta_clave, d.decision, g.nombre, g.area
+                HAVING COUNT(v.id) > 0
                 ORDER BY total_votos DESC, votos_impacto DESC, votos_urgencia DESC
             `);
         res.json({ success: true, data: result.recordset });
@@ -269,18 +274,19 @@ app.get('/api/dashboard/stats', async (req, res) => {
 });
 
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 initDatabase().then(() => {
-    app.listen(PORT, () => {
-        console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
-        console.log(`📱 Accede desde tu teléfono usando la IP de tu computadora en la misma red`);
-    });
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, '0.0.0.0', () => {
+console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
+console.log(`📱 Accede desde tu teléfono usando la IP de tu computadora en la misma red`);
+});
 });
 
 process.on('SIGINT', async () => {
-    console.log('\n🛑 Cerrando conexión a SQL Server...');
-    await pool.close();
-    process.exit(0);
+console.log('\n🛑 Cerrando conexión a SQL Server...');
+await pool.close();
+process.exit(0);
 });

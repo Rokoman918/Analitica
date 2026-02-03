@@ -137,7 +137,8 @@ async function loadDecisiones() {
         const data = await response.json();
         
         if (data.success) {
-            renderDecisiones(data.data);
+            const misDecisiones = data.data.filter(d => d.gerente_id === currentUser.id);
+            renderDecisiones(misDecisiones);
         }
     } catch (error) {
         console.error('Error:', error);
@@ -148,7 +149,7 @@ function renderDecisiones(decisiones) {
     const container = document.getElementById('decisiones-list');
     
     if (decisiones.length === 0) {
-        container.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 2rem;">No hay decisiones registradas aún.</p>';
+        container.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 2rem;">No has registrado decisiones aún. Agrega hasta 3 decisiones clave.</p>';
         return;
     }
 
@@ -159,8 +160,7 @@ function renderDecisiones(decisiones) {
                 <span class="badge badge-${d.impacto.toLowerCase()}">${d.impacto}</span>
             </div>
             <div class="data-item-meta">
-                <strong>Frecuencia:</strong> ${d.frecuencia} | 
-                <strong>Por:</strong> ${d.gerente_nombre} (${d.area})
+                <strong>Frecuencia:</strong> ${d.frecuencia}
             </div>
         </div>
     `).join('');
@@ -236,7 +236,8 @@ async function loadPreguntas() {
         const data = await response.json();
         
         if (data.success) {
-            renderPreguntas(data.data);
+            const misPreguntas = data.data.filter(p => p.gerente_id === currentUser.id);
+            renderPreguntas(misPreguntas);
         }
     } catch (error) {
         console.error('Error:', error);
@@ -247,7 +248,7 @@ function renderPreguntas(preguntas) {
     const container = document.getElementById('preguntas-list');
     
     if (preguntas.length === 0) {
-        container.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 2rem;">No hay preguntas registradas aún.</p>';
+        container.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 2rem;">No has registrado preguntas aún. Crea preguntas basadas en tus decisiones.</p>';
         return;
     }
 
@@ -257,9 +258,6 @@ function renderPreguntas(preguntas) {
                 <div class="data-item-title">${p.pregunta_clave}</div>
             </div>
             ${p.decision_texto ? `<div style="margin-top: 0.5rem; padding: 0.5rem; background: #f1f5f9; border-radius: 6px;"><strong>📊 Decisión:</strong> ${p.decision_texto}</div>` : ''}
-            <div class="data-item-meta">
-                <strong>Por:</strong> ${p.gerente_nombre} (${p.area})
-            </div>
         </div>
     `).join('');
 }
@@ -336,7 +334,8 @@ async function loadFricciones() {
         const data = await response.json();
         
         if (data.success) {
-            renderFricciones(data.data);
+            const misFricciones = data.data.filter(f => f.gerente_id === currentUser.id);
+            renderFricciones(misFricciones);
         }
     } catch (error) {
         console.error('Error:', error);
@@ -347,7 +346,7 @@ function renderFricciones(fricciones) {
     const container = document.getElementById('fricciones-list');
     
     if (fricciones.length === 0) {
-        container.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 2rem;">No hay fricciones registradas aún.</p>';
+        container.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 2rem;">No has registrado fricciones aún. Identifica qué información no está ayudando.</p>';
         return;
     }
 
@@ -358,9 +357,6 @@ function renderFricciones(fricciones) {
             <div style="margin-top: 0.75rem;">
                 <div style="margin-bottom: 0.5rem;"><strong>Hoy qué pasa:</strong> ${f.situacion_actual}</div>
                 <div><strong>Consecuencia:</strong> ${f.consecuencia}</div>
-            </div>
-            <div class="data-item-meta">
-                <strong>Por:</strong> ${f.gerente_nombre} (${f.area})
             </div>
         </div>
     `).join('');
@@ -595,7 +591,7 @@ function renderTopPreguntas(preguntas) {
     const top10 = preguntas.slice(0, 10);
 
     if (top10.length === 0) {
-        container.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 2rem;">No hay votaciones registradas aún.</p>';
+        container.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 2rem;">No hay votaciones registradas aún. Ve al Módulo 4 para votar.</p>';
         return;
     }
 
@@ -604,7 +600,8 @@ function renderTopPreguntas(preguntas) {
             <div class="top-pregunta-rank">#${index + 1}</div>
             <div class="top-pregunta-content">
                 <div class="top-pregunta-text">${p.pregunta_clave}</div>
-                ${p.decision_relacionada ? `<div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Decisión: ${p.decision_relacionada}</div>` : ''}
+                ${p.decision_texto ? `<div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">📊 Decisión: ${p.decision_texto}</div>` : ''}
+                ${p.gerente_nombre ? `<div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">👤 Propuesta por: ${p.gerente_nombre} (${p.area})</div>` : ''}
                 <div class="top-pregunta-votes">
                     <span>🔵 Impacto: <strong>${p.votos_impacto}</strong></span>
                     <span>🔴 Urgencia: <strong>${p.votos_urgencia}</strong></span>

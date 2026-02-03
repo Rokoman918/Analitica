@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: taller-analitica-massy
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_SERVER
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: DB_PORT
+        value: 1433
+      - key: DB_ENCRYPT
+        value: false
+      - key: DB_TRUST_CERT
+        value: true

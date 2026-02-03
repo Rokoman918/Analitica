@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "server-sqlserver.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "server-sqlserver.js"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
+}
