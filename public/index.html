@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Taller de Analítica - Massy Group</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧩 Taller de Analítica Empresarial</h1>
+            <p class="subtitle">De decisiones a preguntas: ¿qué necesitamos saber para dirigir mejor el negocio?</p>
+        </header>
+
+        <div id="registro-section" class="section">
+            <h2>👤 Registro de Participante</h2>
+            <form id="registro-form">
+                <div class="form-group">
+                    <label for="nombre">Nombre Completo *</label>
+                    <input type="text" id="nombre" required>
+                </div>
+                <div class="form-group">
+                    <label for="area">Área/Gerencia *</label>
+                    <input type="text" id="area" required>
+                </div>
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email">
+                </div>
+                <button type="submit" class="btn btn-primary">Comenzar Taller</button>
+            </form>
+        </div>
+
+        <div id="taller-section" class="section hidden">
+            <div class="user-info">
+                <p><strong>Participante:</strong> <span id="user-name"></span></p>
+                <p><strong>Área:</strong> <span id="user-area"></span></p>
+                <button id="btn-logout" class="btn btn-secondary">Cambiar Usuario</button>
+            </div>
+
+            <nav class="tabs">
+                <button class="tab-btn active" data-tab="modulo1">📊 Mapa de Decisiones</button>
+                <button class="tab-btn" data-tab="modulo2">❓ Preguntas Críticas</button>
+                <button class="tab-btn" data-tab="modulo3">⚠️ Fricciones</button>
+                <button class="tab-btn" data-tab="modulo4">🗳️ Votación</button>
+                <button class="tab-btn" data-tab="dashboard">📈 Dashboard</button>
+            </nav>
+
+            <div id="modulo1" class="tab-content active">
+                <div class="module-header">
+                    <h2>🟦 MÓDULO 1: Mapa de Decisiones Clave</h2>
+                    <p class="instruction">No piensen en reportes ni indicadores. Piensen en decisiones reales que, si salen mal, afectan resultados, costos o riesgos.</p>
+                    <p class="rule">⏱ Máx. 3 decisiones por persona | Lenguaje simple | Nada técnico</p>
+                </div>
+
+                <form id="decision-form">
+                    <div class="form-group">
+                        <label for="decision">Decisión que tomo *</label>
+                        <textarea id="decision" rows="3" placeholder="Ej: Ajustar presupuesto de área" required></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="frecuencia">Frecuencia *</label>
+                            <select id="frecuencia" required>
+                                <option value="">Seleccionar...</option>
+                                <option value="Diaria">Diaria</option>
+                                <option value="Semanal">Semanal</option>
+                                <option value="Quincenal">Quincenal</option>
+                                <option value="Mensual">Mensual</option>
+                                <option value="Trimestral">Trimestral</option>
+                                <option value="Anual">Anual</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="impacto">Impacto *</label>
+                            <select id="impacto" required>
+                                <option value="">Seleccionar...</option>
+                                <option value="Bajo">Bajo</option>
+                                <option value="Medio">Medio</option>
+                                <option value="Alto">Alto</option>
+                                <option value="Crítico">Crítico</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Agregar Decisión</button>
+                </form>
+
+                <div id="decisiones-list" class="data-list"></div>
+            </div>
+
+            <div id="modulo2" class="tab-content">
+                <div class="module-header">
+                    <h2>🟦 MÓDULO 2: Preguntas Críticas del Negocio</h2>
+                    <p class="instruction">Imaginen que antes de decidir, alguien les responde una sola pregunta. ¿Cuál sería esa pregunta?</p>
+                    <p class="rule">🚫 Prohibido: KPIs, Fórmulas, Tablas | ✅ Permitido: Preguntas tipo conversación</p>
+                </div>
+
+                <div id="mis-decisiones-info" class="info-box" style="display:none; margin-bottom: 1rem; padding: 1rem; background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 8px;">
+                    <p style="margin: 0; font-size: 0.9rem;">⚠️ Primero debes crear al menos una decisión en el Módulo 1</p>
+                </div>
+
+                <form id="pregunta-form">
+                    <div class="form-group">
+                        <label for="decision-id">Selecciona tu Decisión *</label>
+                        <select id="decision-id" required>
+                            <option value="">Cargando tus decisiones...</option>
+                        </select>
+                        <small style="color: var(--text-secondary); font-size: 0.85rem; display: block; margin-top: 0.25rem;">Puedes crear múltiples preguntas para la misma decisión</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="pregunta-clave">Pregunta Clave (en lenguaje natural) *</label>
+                        <textarea id="pregunta-clave" rows="3" placeholder="Ej: ¿Dónde se está yendo el dinero sin generar valor?" required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Agregar Pregunta</button>
+                </form>
+
+                <div id="preguntas-list" class="data-list"></div>
+            </div>
+
+            <div id="modulo3" class="tab-content">
+                <div class="module-header">
+                    <h2>🟦 MÓDULO 3: Fricciones de Información</h2>
+                    <p class="instruction">No buscamos culpables. Buscamos entender qué no está funcionando con la información.</p>
+                    <p class="rule">Esto genera: Alineación | Sentido de urgencia | Apoyo gerencial</p>
+                </div>
+
+                <div id="mis-preguntas-info" class="info-box" style="display:none; margin-bottom: 1rem; padding: 1rem; background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 8px;">
+                    <p style="margin: 0; font-size: 0.9rem;">⚠️ Primero debes crear al menos una pregunta crítica en el Módulo 2</p>
+                </div>
+
+                <form id="friccion-form">
+                    <div class="form-group">
+                        <label for="pregunta-critica-id">Selecciona tu Pregunta Crítica *</label>
+                        <select id="pregunta-critica-id" required>
+                            <option value="">Cargando tus preguntas...</option>
+                        </select>
+                        <small style="color: var(--text-secondary); font-size: 0.85rem; display: block; margin-top: 0.25rem;">Identifica qué fricción de información afecta esta pregunta</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="situacion-actual">Hoy qué pasa *</label>
+                        <textarea id="situacion-actual" rows="2" placeholder="Ej: Llega tarde" required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="consecuencia">Consecuencia *</label>
+                        <textarea id="consecuencia" rows="2" placeholder="Ej: Decisiones reactivas" required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Agregar Fricción</button>
+                </form>
+
+                <div id="fricciones-list" class="data-list"></div>
+            </div>
+
+            <div id="modulo4" class="tab-content">
+                <div class="module-header">
+                    <h2>🟦 MÓDULO 4: Votación Ejecutiva</h2>
+                    <p class="instruction">Imaginen que solo podemos responder 5 preguntas este año. ¿Cuáles realmente mueven la aguja?</p>
+                    <div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 1rem; border-radius: 8px; margin: 1rem 0;">
+                        <p style="margin: 0; font-size: 0.95rem; color: #1e40af;">
+                            <strong>ℹ️ Información:</strong> Aquí puedes ver <strong>todas las preguntas de todos los participantes</strong> con su decisión relacionada y quién la propuso. 
+                            Vota por las que consideres más importantes para el negocio.
+                        </p>
+                    </div>
+                    <div class="votos-info">
+                        <span class="voto-badge impacto">🔵 Votos de Impacto: <strong id="votos-impacto-restantes">3</strong></span>
+                        <span class="voto-badge urgencia">🔴 Votos de Urgencia: <strong id="votos-urgencia-restantes">2</strong></span>
+                    </div>
+                </div>
+
+                <div id="votacion-list" class="votacion-grid"></div>
+            </div>
+
+            <div id="dashboard" class="tab-content">
+                <div class="module-header">
+                    <h2>📈 Dashboard de Resultados</h2>
+                    <p class="instruction">Consolidación de respuestas y análisis del taller</p>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number" id="stat-gerentes">0</div>
+                        <div class="stat-label">Participantes</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="stat-decisiones">0</div>
+                        <div class="stat-label">Decisiones</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="stat-preguntas">0</div>
+                        <div class="stat-label">Preguntas</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="stat-fricciones">0</div>
+                        <div class="stat-label">Fricciones</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="stat-votaciones">0</div>
+                        <div class="stat-label">Votos Totales</div>
+                    </div>
+                </div>
+
+                <div class="charts-grid">
+                    <div class="chart-container">
+                        <h3>Distribución por Impacto</h3>
+                        <canvas id="chart-impacto"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <h3>Distribución por Frecuencia</h3>
+                        <canvas id="chart-frecuencia"></canvas>
+                    </div>
+                </div>
+
+                <div class="top-preguntas">
+                    <h3>🏆 Top 10 Preguntas Más Votadas</h3>
+                    <div id="top-preguntas-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
