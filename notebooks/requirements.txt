@@ -1,0 +1,8 @@
+pymssql==2.2.11
+pandas==2.1.4
+matplotlib==3.8.2
+seaborn==0.13.0
+openai==1.6.1
+python-dotenv==1.0.0
+openpyxl==3.1.2
+wordcloud==1.9.3

@@ -20,6 +20,10 @@
       "dest": "/public/app.js"
     },
     {
+      "src": "/analytics-app.js",
+      "dest": "/public/analytics-app.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "server-sqlserver.js"
     }

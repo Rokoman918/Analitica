@@ -3,6 +3,7 @@ const sql = require('mssql');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const path = require('path');
+const https = require('https');
 
 const app = express();
 const PORT = 3000;
@@ -30,12 +31,14 @@ async function initDatabase() {
 
 app.post('/api/gerentes', async (req, res) => {
     try {
-        const { nombre, area, email } = req.body;
+        const { nombre, area, email, capa } = req.body;
+        const capaValue = capa || 'Estratégico';
         const result = await pool.request()
             .input('nombre', sql.NVarChar, nombre)
             .input('area', sql.NVarChar, area)
             .input('email', sql.NVarChar, email)
-            .query('INSERT INTO gerentes (nombre, area, email) OUTPUT INSERTED.id VALUES (@nombre, @area, @email)');
+            .input('capa', sql.NVarChar, capaValue)
+            .query('INSERT INTO gerentes (nombre, area, email, capa) OUTPUT INSERTED.id VALUES (@nombre, @area, @email, @capa)');
         
         res.json({ success: true, gerenteId: result.recordset[0].id });
     } catch (error) {
@@ -271,6 +274,353 @@ app.get('/api/dashboard/stats', async (req, res) => {
         console.error('Error:', error);
         res.status(500).json({ success: false, error: error.message });
     }
+});
+
+// ========== ANALYTICS ENDPOINTS ==========
+
+// Cadena completa: Decisión → Pregunta → Fricción → Votos
+app.get('/api/analytics/cadena-completa', async (req, res) => {
+    try {
+        const { capa } = req.query;
+        let capaFilter = '';
+        if (capa && capa !== 'Todas') {
+            capaFilter = `WHERE g.capa = @capa`;
+        }
+        const request = pool.request();
+        if (capa && capa !== 'Todas') {
+            request.input('capa', sql.NVarChar, capa);
+        }
+        const result = await request.query(`
+            SELECT 
+                g.id as gerente_id, g.nombre, g.area, g.capa,
+                d.id as decision_id, d.decision, d.frecuencia, d.impacto,
+                p.id as pregunta_id, p.pregunta_clave,
+                f.id as friccion_id, f.situacion_actual, f.consecuencia,
+                ISNULL((SELECT SUM(CASE WHEN v.tipo_voto = 'impacto' THEN 1 ELSE 0 END) FROM votaciones v WHERE v.pregunta_critica_id = p.id), 0) as votos_impacto,
+                ISNULL((SELECT SUM(CASE WHEN v.tipo_voto = 'urgencia' THEN 1 ELSE 0 END) FROM votaciones v WHERE v.pregunta_critica_id = p.id), 0) as votos_urgencia,
+                ISNULL((SELECT COUNT(*) FROM votaciones v WHERE v.pregunta_critica_id = p.id), 0) as total_votos
+            FROM gerentes g
+            LEFT JOIN decisiones d ON d.gerente_id = g.id
+            LEFT JOIN preguntas_criticas p ON p.decision_id = d.id
+            LEFT JOIN fricciones f ON f.pregunta_critica_id = p.id
+            ${capaFilter}
+            ORDER BY g.area, g.nombre, d.impacto DESC
+        `);
+        res.json({ success: true, data: result.recordset });
+    } catch (error) {
+        console.error('Error analytics cadena:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Scoring compuesto por pregunta
+app.get('/api/analytics/scoring', async (req, res) => {
+    try {
+        const result = await pool.request().query(`
+            SELECT 
+                p.id as pregunta_id,
+                p.pregunta_clave,
+                d.decision,
+                d.frecuencia,
+                d.impacto,
+                g.nombre as gerente_nombre,
+                g.area,
+                g.capa,
+                ISNULL(vi.votos_impacto, 0) as votos_impacto,
+                ISNULL(vi.votos_urgencia, 0) as votos_urgencia,
+                ISNULL(vi.total_votos, 0) as total_votos,
+                (SELECT COUNT(*) FROM fricciones f WHERE f.pregunta_critica_id = p.id) as num_fricciones,
+                -- Score compuesto
+                (ISNULL(vi.votos_impacto, 0) * 3) + 
+                (ISNULL(vi.votos_urgencia, 0) * 2) + 
+                (CASE d.frecuencia 
+                    WHEN 'Diaria' THEN 6 WHEN 'Semanal' THEN 5 WHEN 'Quincenal' THEN 4 
+                    WHEN 'Mensual' THEN 3 WHEN 'Trimestral' THEN 2 WHEN 'Anual' THEN 1 ELSE 0 END) +
+                (CASE d.impacto 
+                    WHEN 'Crítico' THEN 8 WHEN 'Alto' THEN 6 WHEN 'Medio' THEN 3 WHEN 'Bajo' THEN 1 ELSE 0 END) +
+                ((SELECT COUNT(*) FROM fricciones f WHERE f.pregunta_critica_id = p.id) * 1.5)
+                as score
+            FROM preguntas_criticas p
+            JOIN decisiones d ON p.decision_id = d.id
+            JOIN gerentes g ON p.gerente_id = g.id
+            LEFT JOIN (
+                SELECT 
+                    pregunta_critica_id,
+                    SUM(CASE WHEN tipo_voto = 'impacto' THEN 1 ELSE 0 END) as votos_impacto,
+                    SUM(CASE WHEN tipo_voto = 'urgencia' THEN 1 ELSE 0 END) as votos_urgencia,
+                    COUNT(*) as total_votos
+                FROM votaciones GROUP BY pregunta_critica_id
+            ) vi ON vi.pregunta_critica_id = p.id
+            ORDER BY score DESC
+        `);
+        res.json({ success: true, data: result.recordset });
+    } catch (error) {
+        console.error('Error analytics scoring:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Análisis cross-funcional por área
+app.get('/api/analytics/cross-funcional', async (req, res) => {
+    try {
+        const areas = await pool.request().query(`
+            SELECT 
+                g.area,
+                g.capa,
+                COUNT(DISTINCT d.id) as total_decisiones,
+                COUNT(DISTINCT p.id) as total_preguntas,
+                COUNT(DISTINCT f.id) as total_fricciones,
+                COUNT(DISTINCT g.id) as total_gerentes,
+                ISNULL(SUM(CASE WHEN d.impacto = 'Crítico' THEN 1 ELSE 0 END), 0) as decisiones_criticas,
+                ISNULL(SUM(CASE WHEN d.impacto = 'Alto' THEN 1 ELSE 0 END), 0) as decisiones_altas
+            FROM gerentes g
+            LEFT JOIN decisiones d ON d.gerente_id = g.id
+            LEFT JOIN preguntas_criticas p ON p.gerente_id = g.id
+            LEFT JOIN fricciones f ON f.gerente_id = g.id
+            GROUP BY g.area, g.capa
+            ORDER BY total_fricciones DESC
+        `);
+        res.json({ success: true, data: areas.recordset });
+    } catch (error) {
+        console.error('Error analytics cross-funcional:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Heatmap: Frecuencia x Impacto
+app.get('/api/analytics/heatmap', async (req, res) => {
+    try {
+        const result = await pool.request().query(`
+            SELECT frecuencia, impacto, COUNT(*) as cantidad
+            FROM decisiones d
+            JOIN gerentes g ON d.gerente_id = g.id
+            GROUP BY frecuencia, impacto
+            ORDER BY 
+                CASE frecuencia WHEN 'Diaria' THEN 1 WHEN 'Semanal' THEN 2 WHEN 'Quincenal' THEN 3 WHEN 'Mensual' THEN 4 WHEN 'Trimestral' THEN 5 WHEN 'Anual' THEN 6 END,
+                CASE impacto WHEN 'Bajo' THEN 1 WHEN 'Medio' THEN 2 WHEN 'Alto' THEN 3 WHEN 'Crítico' THEN 4 END
+        `);
+        res.json({ success: true, data: result.recordset });
+    } catch (error) {
+        console.error('Error analytics heatmap:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Exportar datos completos en JSON
+app.get('/api/analytics/export/json', async (req, res) => {
+    try {
+        const gerentes = await pool.request().query('SELECT * FROM gerentes ORDER BY area, nombre');
+        const decisiones = await pool.request().query(`
+            SELECT d.*, g.nombre as gerente_nombre, g.area, g.capa 
+            FROM decisiones d JOIN gerentes g ON d.gerente_id = g.id ORDER BY d.id
+        `);
+        const preguntas = await pool.request().query(`
+            SELECT p.*, g.nombre as gerente_nombre, g.area, g.capa, d.decision, d.frecuencia, d.impacto
+            FROM preguntas_criticas p 
+            JOIN gerentes g ON p.gerente_id = g.id 
+            LEFT JOIN decisiones d ON p.decision_id = d.id ORDER BY p.id
+        `);
+        const fricciones = await pool.request().query(`
+            SELECT f.*, g.nombre as gerente_nombre, g.area, g.capa, 
+                   p.pregunta_clave, d.decision
+            FROM fricciones f 
+            JOIN gerentes g ON f.gerente_id = g.id 
+            LEFT JOIN preguntas_criticas p ON f.pregunta_critica_id = p.id
+            LEFT JOIN decisiones d ON p.decision_id = d.id ORDER BY f.id
+        `);
+        const votaciones = await pool.request().query(`
+            SELECT v.*, g.nombre as gerente_nombre, p.pregunta_clave
+            FROM votaciones v 
+            JOIN gerentes g ON v.gerente_id = g.id 
+            JOIN preguntas_criticas p ON v.pregunta_critica_id = p.id ORDER BY v.id
+        `);
+
+        res.json({
+            success: true,
+            export_date: new Date().toISOString(),
+            data: {
+                gerentes: gerentes.recordset,
+                decisiones: decisiones.recordset,
+                preguntas_criticas: preguntas.recordset,
+                fricciones: fricciones.recordset,
+                votaciones: votaciones.recordset
+            }
+        });
+    } catch (error) {
+        console.error('Error export:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Exportar datos en CSV
+app.get('/api/analytics/export/csv', async (req, res) => {
+    try {
+        const { tabla } = req.query;
+        let query = '';
+        let filename = 'export.csv';
+
+        switch (tabla) {
+            case 'scoring':
+                query = `
+                    SELECT p.id, p.pregunta_clave, d.decision, d.frecuencia, d.impacto,
+                        g.nombre, g.area, g.capa,
+                        ISNULL((SELECT SUM(CASE WHEN v.tipo_voto='impacto' THEN 1 ELSE 0 END) FROM votaciones v WHERE v.pregunta_critica_id=p.id),0) as votos_impacto,
+                        ISNULL((SELECT SUM(CASE WHEN v.tipo_voto='urgencia' THEN 1 ELSE 0 END) FROM votaciones v WHERE v.pregunta_critica_id=p.id),0) as votos_urgencia,
+                        (SELECT COUNT(*) FROM fricciones f WHERE f.pregunta_critica_id=p.id) as fricciones
+                    FROM preguntas_criticas p
+                    JOIN decisiones d ON p.decision_id=d.id JOIN gerentes g ON p.gerente_id=g.id`;
+                filename = 'scoring_preguntas.csv';
+                break;
+            case 'cadena':
+                query = `
+                    SELECT g.nombre, g.area, g.capa, d.decision, d.frecuencia, d.impacto,
+                        p.pregunta_clave, f.situacion_actual, f.consecuencia
+                    FROM gerentes g
+                    LEFT JOIN decisiones d ON d.gerente_id=g.id
+                    LEFT JOIN preguntas_criticas p ON p.decision_id=d.id
+                    LEFT JOIN fricciones f ON f.pregunta_critica_id=p.id`;
+                filename = 'cadena_completa.csv';
+                break;
+            default:
+                query = `SELECT g.nombre, g.area, g.capa, d.decision, d.frecuencia, d.impacto,
+                    p.pregunta_clave, f.situacion_actual, f.consecuencia
+                    FROM gerentes g
+                    LEFT JOIN decisiones d ON d.gerente_id=g.id
+                    LEFT JOIN preguntas_criticas p ON p.decision_id=d.id
+                    LEFT JOIN fricciones f ON f.pregunta_critica_id=p.id`;
+                filename = 'taller_completo.csv';
+        }
+
+        const result = await pool.request().query(query);
+        const rows = result.recordset;
+
+        if (rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'No hay datos' });
+        }
+
+        const headers = Object.keys(rows[0]);
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(row => headers.map(h => `"${(row[h] || '').toString().replace(/"/g, '""')}"`).join(','))
+        ].join('\n');
+
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.send('\uFEFF' + csvContent);
+    } catch (error) {
+        console.error('Error CSV export:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Clasificación de fricciones con OpenAI
+app.post('/api/analytics/clasificar-fricciones', async (req, res) => {
+    try {
+        const apiKey = process.env.OPENAI_API_KEY;
+        if (!apiKey) {
+            return res.status(400).json({ success: false, error: 'OpenAI API Key no configurada' });
+        }
+
+        const fricciones = await pool.request().query(`
+            SELECT f.id, f.situacion_actual, f.consecuencia,
+                   p.pregunta_clave, d.decision, g.area, g.capa
+            FROM fricciones f
+            JOIN gerentes g ON f.gerente_id = g.id
+            LEFT JOIN preguntas_criticas p ON f.pregunta_critica_id = p.id
+            LEFT JOIN decisiones d ON p.decision_id = d.id
+        `);
+
+        if (fricciones.recordset.length === 0) {
+            return res.json({ success: true, data: [], message: 'No hay fricciones para clasificar' });
+        }
+
+        const friccionesText = fricciones.recordset.map((f, i) => 
+            `${i+1}. Área: ${f.area} | Capa: ${f.capa} | Decisión: ${f.decision || 'N/A'} | Pregunta: ${f.pregunta_clave || 'N/A'} | Situación: ${f.situacion_actual} | Consecuencia: ${f.consecuencia}`
+        ).join('\n');
+
+        const prompt = `Eres un consultor experto en estrategia de datos y analítica empresarial. Analiza las siguientes fricciones de información identificadas en talleres con gerentes de Massy Group.
+
+Para cada fricción, clasifícala en UNA de estas categorías:
+- DISPONIBILIDAD: El dato no existe o no se recopila
+- OPORTUNIDAD: El dato existe pero llega tarde
+- CALIDAD: El dato existe pero es incorrecto o incompleto
+- ACCESIBILIDAD: El dato existe pero es difícil de obtener (silos, Excel personal, etc.)
+- GRANULARIDAD: El dato existe pero no al nivel de detalle necesario
+- INTEGRACIÓN: Los datos están en múltiples sistemas sin conectar
+
+Además, para cada fricción sugiere:
+1. Una acción concreta para resolver la fricción
+2. El esfuerzo estimado (Bajo/Medio/Alto)
+3. El tipo de solución (Dashboard, ETL/Pipeline, Data Governance, Nueva fuente de datos, Integración de sistemas, Capacitación)
+
+FRICCIONES:
+${friccionesText}
+
+Responde SOLO en formato JSON válido como un array de objetos con esta estructura:
+[{"id": 1, "categoria": "DISPONIBILIDAD", "accion": "...", "esfuerzo": "Medio", "tipo_solucion": "Nueva fuente de datos", "insight": "..."}]
+
+IMPORTANTE: Responde SOLO el JSON, sin texto adicional, sin markdown, sin backticks.`;
+
+        const requestBody = JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.3,
+            max_tokens: 4000
+        });
+
+        const aiResponse = await new Promise((resolve, reject) => {
+            const req = https.request({
+                hostname: 'api.openai.com',
+                path: '/v1/chat/completions',
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                }
+            }, (response) => {
+                let data = '';
+                response.on('data', chunk => data += chunk);
+                response.on('end', () => {
+                    try {
+                        resolve(JSON.parse(data));
+                    } catch (e) {
+                        reject(new Error('Error parsing OpenAI response'));
+                    }
+                });
+            });
+            req.on('error', reject);
+            req.write(requestBody);
+            req.end();
+        });
+
+        if (aiResponse.error) {
+            return res.status(500).json({ success: false, error: aiResponse.error.message });
+        }
+
+        const content = aiResponse.choices[0].message.content.trim();
+        let clasificaciones;
+        try {
+            clasificaciones = JSON.parse(content);
+        } catch (e) {
+            const jsonMatch = content.match(/\[[\s\S]*\]/);
+            clasificaciones = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+        }
+
+        const resultado = fricciones.recordset.map((f, i) => ({
+            ...f,
+            clasificacion: clasificaciones[i] || { categoria: 'SIN CLASIFICAR', accion: '', esfuerzo: '', tipo_solucion: '', insight: '' }
+        }));
+
+        res.json({ success: true, data: resultado });
+    } catch (error) {
+        console.error('Error clasificación IA:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Analytics page
+app.get('/analytics', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'analytics.html'));
 });
 
 app.get('/', (req, res) => {

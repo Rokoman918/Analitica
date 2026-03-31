@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laboratorio Analítico - Massy Group</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .analytics-header { background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); color: white; padding: 2rem; border-radius: 12px; margin-bottom: 2rem; }
+        .analytics-header h1 { margin: 0 0 0.5rem 0; font-size: 1.8rem; }
+        .analytics-header p { margin: 0; opacity: 0.8; }
+        .analytics-nav { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+        .analytics-nav button { padding: 0.6rem 1.2rem; border: 2px solid #e2e8f0; background: white; border-radius: 8px; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all 0.2s; }
+        .analytics-nav button.active { background: #1e3a5f; color: white; border-color: #1e3a5f; }
+        .analytics-nav button:hover { border-color: #1e3a5f; }
+        .filter-bar { display: flex; gap: 1rem; align-items: center; margin-bottom: 1.5rem; padding: 1rem; background: #f8fafc; border-radius: 8px; flex-wrap: wrap; }
+        .filter-bar label { font-weight: 600; font-size: 0.9rem; }
+        .filter-bar select { padding: 0.5rem; border-radius: 6px; border: 1px solid #cbd5e1; }
+        .panel { display: none; }
+        .panel.active { display: block; }
+        .score-badge { display: inline-block; padding: 0.3rem 0.8rem; border-radius: 20px; font-weight: 700; font-size: 0.85rem; color: white; }
+        .score-high { background: #ef4444; }
+        .score-medium { background: #f59e0b; }
+        .score-low { background: #10b981; }
+        .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 1rem; }
+        .data-table th { background: #1e3a5f; color: white; padding: 0.75rem; text-align: left; position: sticky; top: 0; }
+        .data-table td { padding: 0.6rem 0.75rem; border-bottom: 1px solid #e2e8f0; }
+        .data-table tr:hover { background: #f1f5f9; }
+        .data-table tr:nth-child(even) { background: #f8fafc; }
+        .data-table tr:nth-child(even):hover { background: #f1f5f9; }
+        .table-wrapper { overflow-x: auto; max-height: 600px; overflow-y: auto; border-radius: 8px; border: 1px solid #e2e8f0; }
+        .export-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+        .btn-export { padding: 0.5rem 1rem; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; }
+        .btn-csv { background: #10b981; color: white; }
+        .btn-json { background: #3b82f6; color: white; }
+        .btn-ai { background: linear-gradient(135deg, #8b5cf6, #ec4899); color: white; padding: 0.7rem 1.5rem; font-size: 1rem; }
+        .btn-export:hover { opacity: 0.9; transform: translateY(-1px); }
+        .heatmap-grid { display: grid; grid-template-columns: 120px repeat(4, 1fr); gap: 2px; margin-top: 1rem; }
+        .heatmap-cell { padding: 1rem; text-align: center; border-radius: 4px; font-weight: 600; font-size: 0.9rem; min-height: 60px; display: flex; align-items: center; justify-content: center; }
+        .heatmap-header { background: #1e3a5f; color: white; font-size: 0.8rem; }
+        .heatmap-label { background: #334155; color: white; font-size: 0.8rem; }
+        .heat-0 { background: #f1f5f9; color: #64748b; }
+        .heat-1 { background: #bbf7d0; color: #166534; }
+        .heat-2 { background: #fde68a; color: #92400e; }
+        .heat-3 { background: #fdba74; color: #9a3412; }
+        .heat-4 { background: #fca5a5; color: #991b1b; }
+        .heat-5 { background: #ef4444; color: white; }
+        .matrix-container { position: relative; width: 100%; height: 500px; border: 2px solid #e2e8f0; border-radius: 8px; margin-top: 1rem; background: #fafafa; }
+        .matrix-quadrant { position: absolute; width: 50%; height: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 600; opacity: 0.15; }
+        .matrix-q1 { top: 0; right: 0; background: #ef4444; }
+        .matrix-q2 { top: 0; left: 0; background: #f59e0b; }
+        .matrix-q3 { bottom: 0; left: 0; background: #94a3b8; }
+        .matrix-q4 { bottom: 0; right: 0; background: #3b82f6; }
+        .matrix-dot { position: absolute; width: 12px; height: 12px; border-radius: 50%; background: #1e3a5f; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); cursor: pointer; transform: translate(-50%, 50%); z-index: 10; }
+        .matrix-dot:hover { transform: translate(-50%, 50%) scale(1.5); }
+        .matrix-tooltip { display: none; position: absolute; background: #1e293b; color: white; padding: 0.75rem; border-radius: 8px; font-size: 0.8rem; max-width: 250px; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .matrix-axis-label { position: absolute; font-weight: 700; color: #475569; font-size: 0.85rem; }
+        .matrix-axis-x { bottom: -25px; left: 50%; transform: translateX(-50%); }
+        .matrix-axis-y { top: 50%; left: -80px; transform: translateY(-50%) rotate(-90deg); }
+        .ai-results { margin-top: 1rem; }
+        .ai-card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .ai-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem; }
+        .ai-categoria { padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.8rem; font-weight: 700; color: white; }
+        .cat-disponibilidad { background: #ef4444; }
+        .cat-oportunidad { background: #f59e0b; }
+        .cat-calidad { background: #8b5cf6; }
+        .cat-accesibilidad { background: #3b82f6; }
+        .cat-granularidad { background: #06b6d4; }
+        .cat-integracion { background: #ec4899; }
+        .ai-meta { font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem; }
+        .ai-accion { background: #f0fdf4; border-left: 3px solid #10b981; padding: 0.75rem; border-radius: 0 6px 6px 0; margin-top: 0.5rem; font-size: 0.9rem; }
+        .ai-loading { text-align: center; padding: 3rem; }
+        .ai-loading .spinner { width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top: 4px solid #8b5cf6; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+        .summary-card { background: white; border-radius: 12px; padding: 1.25rem; border: 1px solid #e2e8f0; text-align: center; }
+        .summary-card .number { font-size: 2rem; font-weight: 800; color: #1e3a5f; }
+        .summary-card .label { font-size: 0.85rem; color: #64748b; margin-top: 0.25rem; }
+        .back-link { display: inline-block; margin-bottom: 1rem; color: #3b82f6; text-decoration: none; font-weight: 600; }
+        .back-link:hover { text-decoration: underline; }
+        .charts-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem; }
+        .chart-box { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem; }
+        .chart-box h3 { margin: 0 0 1rem 0; font-size: 1rem; color: #1e3a5f; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-link">← Volver al Taller</a>
+        
+        <div class="analytics-header">
+            <h1>🔬 Laboratorio Analítico del Taller</h1>
+            <p>Análisis de datos para la estrategia analítica de Massy Group</p>
+        </div>
+
+        <div class="filter-bar">
+            <label>🏷️ Capa:</label>
+            <select id="filter-capa" onchange="loadCurrentPanel()">
+                <option value="Todas">Todas las Capas</option>
+                <option value="Estratégico" selected>Estratégico (C-Level)</option>
+                <option value="Táctico">Táctico (Líderes)</option>
+                <option value="Operativo">Operativo (Día a día)</option>
+            </select>
+            <label>🔍 Buscar:</label>
+            <input type="text" id="filter-search" placeholder="Filtrar por texto..." oninput="filterTable()" style="padding: 0.5rem; border-radius: 6px; border: 1px solid #cbd5e1; width: 200px;">
+        </div>
+
+        <nav class="analytics-nav">
+            <button class="active" onclick="showPanel('scoring')">🏆 Scoring & Priorización</button>
+            <button onclick="showPanel('cadena')">🔗 Cadena Completa</button>
+            <button onclick="showPanel('matrix')">📊 Matriz 2x2</button>
+            <button onclick="showPanel('heatmap')">🌡️ Heatmap</button>
+            <button onclick="showPanel('cross')">🏢 Cross-Funcional</button>
+            <button onclick="showPanel('ai')">🤖 Clasificación IA</button>
+            <button onclick="showPanel('export')">📥 Exportar</button>
+        </nav>
+
+        <!-- Panel: Scoring -->
+        <div id="panel-scoring" class="panel active">
+            <h2>🏆 Scoring Compuesto & Priorización de Preguntas</h2>
+            <p style="color: #64748b; margin-bottom: 1rem;">Score = (Votos Impacto × 3) + (Votos Urgencia × 2) + (Frecuencia) + (Impacto Decisión) + (Fricciones × 1.5)</p>
+            <div id="scoring-summary" class="summary-cards"></div>
+            <div class="table-wrapper">
+                <table class="data-table" id="scoring-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Score</th>
+                            <th>Pregunta Crítica</th>
+                            <th>Decisión</th>
+                            <th>Área</th>
+                            <th>Capa</th>
+                            <th>Frecuencia</th>
+                            <th>Impacto</th>
+                            <th>V. Impacto</th>
+                            <th>V. Urgencia</th>
+                            <th>Fricciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="scoring-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Panel: Cadena Completa -->
+        <div id="panel-cadena" class="panel">
+            <h2>🔗 Cadena Completa: Decisión → Pregunta → Fricción</h2>
+            <div class="table-wrapper">
+                <table class="data-table" id="cadena-table">
+                    <thead>
+                        <tr>
+                            <th>Gerente</th>
+                            <th>Área</th>
+                            <th>Capa</th>
+                            <th>Decisión</th>
+                            <th>Frecuencia</th>
+                            <th>Impacto</th>
+                            <th>Pregunta Crítica</th>
+                            <th>Votos</th>
+                            <th>Fricción (Situación)</th>
+                            <th>Consecuencia</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cadena-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Panel: Matriz 2x2 -->
+        <div id="panel-matrix" class="panel">
+            <h2>📊 Matriz de Priorización (Impacto vs Urgencia)</h2>
+            <p style="color: #64748b;">Cada punto representa una pregunta crítica posicionada según sus votos de impacto (eje X) y urgencia (eje Y).</p>
+            <div class="matrix-container" id="matrix-container">
+                <div class="matrix-quadrant matrix-q1"><span style="font-size:1.5rem;">🔥 HACER YA</span></div>
+                <div class="matrix-quadrant matrix-q2"><span style="font-size:1.5rem;">📋 PLANIFICAR</span></div>
+                <div class="matrix-quadrant matrix-q3"><span style="font-size:1.5rem;">📌 MONITOREAR</span></div>
+                <div class="matrix-quadrant matrix-q4"><span style="font-size:1.5rem;">⚡ ESTRATÉGICO</span></div>
+                <div class="matrix-axis-label matrix-axis-x">→ Votos de Impacto</div>
+            </div>
+            <div id="matrix-tooltip" class="matrix-tooltip"></div>
+        </div>
+
+        <!-- Panel: Heatmap -->
+        <div id="panel-heatmap" class="panel">
+            <h2>🌡️ Heatmap: Frecuencia × Impacto de Decisiones</h2>
+            <p style="color: #64748b; margin-bottom: 1rem;">Las celdas más oscuras indican mayor concentración de decisiones. Las decisiones de alta frecuencia + alto impacto representan el mayor ROI para inversión analítica.</p>
+            <div class="heatmap-grid" id="heatmap-grid"></div>
+        </div>
+
+        <!-- Panel: Cross-Funcional -->
+        <div id="panel-cross" class="panel">
+            <h2>🏢 Análisis Cross-Funcional por Área</h2>
+            <div class="charts-row">
+                <div class="chart-box">
+                    <h3>Distribución por Área</h3>
+                    <canvas id="chart-areas"></canvas>
+                </div>
+                <div class="chart-box">
+                    <h3>Fricciones por Área</h3>
+                    <canvas id="chart-fricciones-area"></canvas>
+                </div>
+            </div>
+            <div class="table-wrapper">
+                <table class="data-table" id="cross-table">
+                    <thead>
+                        <tr>
+                            <th>Área</th>
+                            <th>Capa</th>
+                            <th>Gerentes</th>
+                            <th>Decisiones</th>
+                            <th>Preguntas</th>
+                            <th>Fricciones</th>
+                            <th>Dec. Críticas</th>
+                            <th>Dec. Altas</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cross-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Panel: IA -->
+        <div id="panel-ai" class="panel">
+            <h2>🤖 Clasificación Inteligente de Fricciones (OpenAI)</h2>
+            <p style="color: #64748b; margin-bottom: 1rem;">La IA analiza cada fricción y la clasifica por tipo de problema de datos, sugiriendo acciones concretas y estimando el esfuerzo.</p>
+            <button class="btn-export btn-ai" onclick="clasificarFricciones()">🧠 Ejecutar Análisis con IA</button>
+            <div id="ai-results" class="ai-results">
+                <p style="text-align:center; color: #94a3b8; padding: 2rem;">Presiona el botón para ejecutar el análisis con inteligencia artificial.</p>
+            </div>
+        </div>
+
+        <!-- Panel: Exportar -->
+        <div id="panel-export" class="panel">
+            <h2>📥 Exportar Datos del Taller</h2>
+            <p style="color: #64748b; margin-bottom: 1.5rem;">Descarga los datos para análisis externo en Power BI, Excel, Python, etc.</p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                <div class="summary-card">
+                    <h3>📊 Cadena Completa</h3>
+                    <p style="font-size: 0.85rem; color: #64748b;">Decisiones → Preguntas → Fricciones</p>
+                    <button class="btn-export btn-csv" onclick="exportCSV('cadena')" style="margin-top: 0.5rem;">⬇️ Descargar CSV</button>
+                </div>
+                <div class="summary-card">
+                    <h3>🏆 Scoring de Preguntas</h3>
+                    <p style="font-size: 0.85rem; color: #64748b;">Ranking con score compuesto</p>
+                    <button class="btn-export btn-csv" onclick="exportCSV('scoring')" style="margin-top: 0.5rem;">⬇️ Descargar CSV</button>
+                </div>
+                <div class="summary-card">
+                    <h3>📦 Todo en JSON</h3>
+                    <p style="font-size: 0.85rem; color: #64748b;">Todas las tablas para programadores</p>
+                    <button class="btn-export btn-json" onclick="exportJSON()" style="margin-top: 0.5rem;">⬇️ Descargar JSON</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="analytics-app.js"></script>
+</body>
+</html>
