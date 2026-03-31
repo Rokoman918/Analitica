@@ -1,0 +1,29 @@
+# Comandos para desplegar en Vercel (ejecutar después del login)
+
+# 1. Desplegar el proyecto
+vercel --yes
+
+# 2. Configurar variables de entorno
+vercel env add DB_SERVER production
+# Valor: 162.248.53.192
+
+vercel env add DB_USER production
+# Valor: IdentyWebUser
+
+vercel env add DB_PASSWORD production
+# Valor: Tatiana2006
+
+vercel env add DB_NAME production
+# Valor: taller_analitica
+
+vercel env add DB_PORT production
+# Valor: 1433
+
+vercel env add DB_ENCRYPT production
+# Valor: false
+
+vercel env add DB_TRUST_CERT production
+# Valor: true
+
+# 3. Re-desplegar con las variables
+vercel --prod
